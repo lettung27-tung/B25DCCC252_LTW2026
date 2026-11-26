@@ -114,3 +114,23 @@ export const validateMatchForm = (form, matches) => {
 
   return errors;
 };
+
+const toInteger = (text) => {
+  const trimmed = String(text).trim();
+  return trimmed !== "" && Number.isInteger(Number(trimmed)) ? Number(trimmed) : NaN;
+};
+
+// Cần thêm bao nhiêu điểm để đội teamId đạt target với remaining trận còn lại
+export const calcNeeded = (standings, teamId, target, remaining) => {
+  const team = standings.find((row) => String(row.id) === String(teamId));
+  const goal = toInteger(target);
+  const left = toInteger(remaining);
+  if (!team || !(goal >= 0) || !(left >= 1)) {
+    return "Hãy chọn đội, nhập số điểm mục tiêu (từ 0) và số trận còn lại (từ 1)";
+  }
+  const need = goal - team.points;
+  if (need <= 0) return "Đội đã đạt mục tiêu";
+  if (need > 3 * left) return "Không thể đạt mục tiêu này";
+  const wins = Math.max(0, Math.ceil((need - left) / 2));
+  return `Cần thêm ${need} điểm ở ${left} trận còn lại, tối thiểu ${wins} trận thắng`;
+};

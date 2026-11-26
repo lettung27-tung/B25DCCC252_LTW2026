@@ -1,32 +1,28 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import useFetch from "./hooks/useFetch";
-import matchesReducer from "./matchesReducer";
-import { MAX_GOALS, RESULT_LABELS, ROUNDS, TEAMS } from "./data";
-import {
-  calcMatchStats,
-  calcStandings,
-  formatDiff,
-  getResult,
-  getTeamName,
-  isValidGoals,
-  validateMatchForm,
-} from "./utils";
+import { removeMatch, selectMatches, setGoals, setMatches } from "./features/matchesSlice";
+import { useTheme } from "./context/ThemeContext";
+import { useNotice } from "./context/NoticeContext";
+import { MAX_GOALS, RESULT_LABELS, ROUNDS } from "./data";
+import { calcMatchStats, calcStandings, getResult, getTeamName, isValidGoals } from "./utils";
+import AddMatchForm from "./components/AddMatchForm";
+import StandingsTable from "./components/StandingsTable";
+import GoalPlanner from "./components/GoalPlanner";
 
 const BUILD_TAG = "bd-5918";
 
-const emptyForm = { round: "1", homeId: "", awayId: "", homeGoals: "", awayGoals: "" };
-
 const App = () => {
+  const dispatch = useDispatch();
+  const matches = useSelector(selectMatches);
+  const { theme, toggleTheme } = useTheme();
+  const showNotice = useNotice();
   const { data, loading, error } = useFetch("/data/matches.json");
-  const [matches, dispatch] = useReducer(matchesReducer, []);
   const [round, setRound] = useState("all");
-  const [form, setForm] = useState(emptyForm);
-  const [errors, setErrors] = useState({});
-  const homeRef = useRef(null);
 
   useEffect(() => {
-    if (data) dispatch({ type: "LOAD", payload: data });
-  }, [data]);
+    if (data) dispatch(setMatches(data));
+  }, [data, dispatch]);
 
   const shownMatches = useMemo(
     () => matches.filter((match) => round === "all" || match.round === Number(round)),
@@ -36,28 +32,9 @@ const App = () => {
   const stats = useMemo(() => calcMatchStats(shownMatches), [shownMatches]);
   const leader = matches.length > 0 ? standings[0] : null;
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm((current) => ({ ...current, [name]: value }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const nextErrors = validateMatchForm(form, matches);
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
-    dispatch({
-      type: "ADD",
-      payload: {
-        round: Number(form.round),
-        homeId: Number(form.homeId),
-        awayId: Number(form.awayId),
-        homeGoals: Number(form.homeGoals),
-        awayGoals: Number(form.awayGoals),
-      },
-    });
-    setForm(emptyForm);
-    homeRef.current.focus();
+  const handleRemove = (match) => {
+    dispatch(removeMatch(match.id));
+    showNotice(`Đã xóa trận ${getTeamName(match.homeId)} - ${getTeamName(match.awayId)}`);
   };
 
   const renderTable = () => {
@@ -99,10 +76,7 @@ const App = () => {
                     onChange={(e) => {
                       const value = e.target.valueAsNumber;
                       if (isValidGoals(value)) {
-                        dispatch({
-                          type: "SET_GOALS",
-                          payload: { id: match.id, homeGoals: value, awayGoals: match.awayGoals },
-                        });
+                        dispatch(setGoals({ id: match.id, homeGoals: value, awayGoals: match.awayGoals }));
                       }
                     }}
                   />
@@ -117,10 +91,7 @@ const App = () => {
                     onChange={(e) => {
                       const value = e.target.valueAsNumber;
                       if (isValidGoals(value)) {
-                        dispatch({
-                          type: "SET_GOALS",
-                          payload: { id: match.id, homeGoals: match.homeGoals, awayGoals: value },
-                        });
+                        dispatch(setGoals({ id: match.id, homeGoals: match.homeGoals, awayGoals: value }));
                       }
                     }}
                   />
@@ -128,7 +99,7 @@ const App = () => {
                 <td>{awayName}</td>
                 <td>{RESULT_LABELS[result]}</td>
                 <td>
-                  <button type="button" onClick={() => dispatch({ type: "REMOVE", payload: match.id })}>
+                  <button type="button" onClick={() => handleRemove(match)}>
                     Xóa
                   </button>
                 </td>
@@ -141,8 +112,11 @@ const App = () => {
   };
 
   return (
-    <div className="app" data-build={BUILD_TAG}>
+    <div className={`app ${theme}`} data-build={BUILD_TAG}>
       <h1>Giải bóng đá khoa</h1>
+      <button type="button" onClick={toggleTheme}>
+        {theme === "light" ? "Chế độ tối" : "Chế độ sáng"}
+      </button>
 
       <section>
         <h2>Lịch thi đấu</h2>
@@ -160,104 +134,12 @@ const App = () => {
 
       <section>
         <h2>Thêm trận đấu</h2>
-        <form onSubmit={handleSubmit} noValidate>
-          <div>
-            <label htmlFor="form-round">Vòng</label>{" "}
-            <select id="form-round" name="round" value={form.round} onChange={handleChange}>
-              {ROUNDS.map((r) => (
-                <option key={r} value={String(r)}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="form-home">Đội nhà</label>{" "}
-            <select id="form-home" name="homeId" ref={homeRef} value={form.homeId} onChange={handleChange}>
-              <option value="">-- Chọn đội --</option>
-              {TEAMS.map((team) => (
-                <option key={team.id} value={String(team.id)}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
-            {errors.homeId && <p role="alert">{errors.homeId}</p>}
-          </div>
-          <div>
-            <label htmlFor="form-away">Đội khách</label>{" "}
-            <select id="form-away" name="awayId" value={form.awayId} onChange={handleChange}>
-              <option value="">-- Chọn đội --</option>
-              {TEAMS.map((team) => (
-                <option key={team.id} value={String(team.id)}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
-            {errors.awayId && <p role="alert">{errors.awayId}</p>}
-          </div>
-          <div>
-            <label htmlFor="form-home-goals">Bàn thắng đội nhà</label>{" "}
-            <input
-              id="form-home-goals"
-              type="number"
-              name="homeGoals"
-              value={form.homeGoals}
-              onChange={handleChange}
-            />
-            {errors.homeGoals && <p role="alert">{errors.homeGoals}</p>}
-          </div>
-          <div>
-            <label htmlFor="form-away-goals">Bàn thắng đội khách</label>{" "}
-            <input
-              id="form-away-goals"
-              type="number"
-              name="awayGoals"
-              value={form.awayGoals}
-              onChange={handleChange}
-            />
-            {errors.awayGoals && <p role="alert">{errors.awayGoals}</p>}
-          </div>
-          <button type="submit">Thêm trận</button>
-        </form>
+        <AddMatchForm />
       </section>
 
       <section>
         <h2>Bảng xếp hạng</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Hạng</th>
-              <th>Đội</th>
-              <th>Trận</th>
-              <th>Thắng</th>
-              <th>Hòa</th>
-              <th>Thua</th>
-              <th>BT</th>
-              <th>BB</th>
-              <th>HS</th>
-              <th>Điểm</th>
-            </tr>
-          </thead>
-          <tbody>
-            {standings.map((row, index) => (
-              <tr
-                key={row.id}
-                style={index === standings.length - 1 ? { color: "#c62828" } : undefined}
-              >
-                <td>{index + 1}</td>
-                <td>{row.name}</td>
-                <td>{row.played}</td>
-                <td>{row.won}</td>
-                <td>{row.drawn}</td>
-                <td>{row.lost}</td>
-                <td>{row.gf}</td>
-                <td>{row.ga}</td>
-                <td>{formatDiff(row.diff)}</td>
-                <td>{row.points}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <StandingsTable standings={standings} />
       </section>
 
       <section>
@@ -266,6 +148,11 @@ const App = () => {
         <p>{`Tổng số bàn thắng: ${stats.goals}`}</p>
         <p>{`Bàn thắng mỗi trận: ${stats.average.toFixed(2)}`}</p>
         <p>{leader ? `Đội dẫn đầu: ${leader.name} (${leader.points} điểm)` : "Đội dẫn đầu: —"}</p>
+      </section>
+
+      <section>
+        <h2>Mục tiêu điểm</h2>
+        <GoalPlanner standings={standings} />
       </section>
     </div>
   );
