@@ -1,0 +1,11 @@
+body { margin: 0; font-family: system-ui, Arial, sans-serif; }
+.app { min-height: 100vh; padding: 16px 24px; box-sizing: border-box; background: #ffffff; color: #18212c; }
+.app.light { background: #ffffff; color: #18212c; }
+.app.dark { background: #1f2430; color: #e8eaf0; color-scheme: dark; }
+section { margin: 16px 0; }
+table { border-collapse: collapse; }
+th, td { border: 1px solid #9aa4b2; padding: 4px 8px; text-align: left; }
+input[type="number"] { width: 64px; }
+form div { margin: 6px 0; }
+[role="alert"] { color: #c62828; margin: 2px 0; font-size: 14px; }
+[role="status"] { background: #2e7d32; color: #ffffff; padding: 8px 16px; }
